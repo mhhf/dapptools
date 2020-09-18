@@ -14,7 +14,7 @@ module Main where
 
 import EVM (StorageModel(..))
 import qualified EVM
-import EVM.Concrete (createAddress, w256)
+import EVM.Concrete (createAddress, w256, Whiff(..))
 import EVM.Symbolic (forceLitBytes, litBytes, litAddr, w256lit, sw256, SymWord(..), Buffer(..), len)
 import qualified EVM.FeeSchedule as FeeSchedule
 import qualified EVM.Fetch
@@ -712,7 +712,7 @@ vmFromCommand cmd = do
 symvmFromCommand :: Command Options.Unwrapped -> Query EVM.VM
 symvmFromCommand cmd = do
   caller' <- maybe (SAddr <$> freshVar_) (return . litAddr) (caller cmd)
-  callvalue' <- maybe (sw256 <$> freshVar_) (return . w256lit) (value cmd)
+  callvalue' <- maybe ((S (Var "CallValue")) <$> freshVar_) (return . w256lit) (value cmd)
   (calldata', cdlen, pathCond) <- case (calldata cmd, sig cmd) of
     -- fully abstract calldata (up to 1024 bytes)
     (Nothing, Nothing) -> do

@@ -408,9 +408,8 @@ main = defaultMain $ testGroup "hevm"
             case view (state . calldata . _1) vm of
               SymbolicBuffer bs -> BS.pack <$> mapM (getValue.fromSized) bs
               ConcreteBuffer _ -> error "unexpected"
-              
-          let AbiTuple xywz = decodeAbiValue (AbiTupleType $ Vector.fromList
-                                              [AbiUIntType 256, AbiUIntType 256,
+
+          let AbiTuple xywz = decodeAbiValue (AbiTupleType $ Vector.fromList [AbiUIntType 256, AbiUIntType 256,
                                                AbiUIntType 256, AbiUIntType 256]) (BS.fromStrict (BS.drop 4 bs))
               [AbiUInt 256 x, AbiUInt 256 y, AbiUInt 256 w, AbiUInt 256 z] = Vector.toList xywz
           assertEqual "x == w" x w
@@ -459,7 +458,7 @@ main = defaultMain $ testGroup "hevm"
                   contract C {
                     uint x;
                     A constant a = A(0x35D1b3F3D7966A1DFe207aa4514C12a259A0492B);
-    
+
                     function call_A() public view {
                       // should fail since a.x() can be anything
                       assert(a.x() == x);
