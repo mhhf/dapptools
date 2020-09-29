@@ -94,9 +94,9 @@ abstractVM typesignature concreteArgs x storagemodel = do
     case typesignature of
       Nothing -> do cd <- sbytes256
                     len <- freshVar_
-                    return (cd, len, (len .<= 256, Val "len < 256"))
+                    return (cd, len, (len .<= 256, Val "calldatalength < 256"))
       Just (name, typs) -> do (cd, cdlen) <- symCalldata name typs concreteArgs
-                              return (cd, cdlen, (sTrue, Val "len < 256"))
+                              return (cd, cdlen, (sTrue, Val "True"))
   symstore <- case storagemodel of
     SymbolicS -> Symbolic <$> freshArray_ Nothing
     InitialS -> Symbolic <$> freshArray_ (Just 0)
@@ -129,7 +129,6 @@ loadSymVM x initStore model addr callvalue' calldata' =
     , vmoptStorageModel = model
     }) & set (env . contracts . at (createAddress ethrunAddress 1))
              (Just (contractWithStore x initStore))
-
 
 -- | Interpreter which explores all paths at
 -- | branching points.
@@ -190,7 +189,7 @@ verifyContract theCode signature' concreteArgs storagemodel pre maybepost = do
     preStateRaw <- abstractVM signature' concreteArgs theCode  storagemodel
     -- add the pre condition to the pathconditions to ensure that we are only exploring valid paths
     let preState = over pathConditions ((++) [(pre preStateRaw, Dull)]) preStateRaw
-    verify preState maxIter Nothing maybepost
+    verify preState Nothing Nothing maybepost
 
 pruneDeadPaths :: [VM] -> [VM]
 pruneDeadPaths =
