@@ -1,0 +1,11 @@
+Data.Binary decode :: Binary a => ByteString -> a
+Crypto.Classes.Exceptions buildKey :: BlockCipher k => ByteString -> k
+Crypto.Classes.Exceptions newGen :: CryptoRandomGen g => ByteString -> g
+GHC.PackageDb fromStringRep :: BinaryStringRep a => ByteString -> a
+Crypto.Classes hash :: (Hash ctx d, Hash ctx d) => ByteString -> d
+Crypto.Classes hash' :: (Hash ctx d, Hash ctx d) => ByteString -> d
+Crypto.Classes.Exceptions hash :: (Hash ctx d, Hash ctx d) => ByteString -> d
+Crypto.Classes.Exceptions hash' :: (Hash ctx d, Hash ctx d) => ByteString -> d
+Unsafe.Coerce unsafeCoerce :: a -> b
+GHC.Exts unsafeCoerce# :: () => a -> b
+-- plus more results not shown, pass --count=20 to see more

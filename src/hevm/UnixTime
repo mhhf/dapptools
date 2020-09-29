@@ -1,0 +1,11 @@
+Unsafe.Coerce unsafeCoerce :: a -> b
+GHC.Exts unsafeCoerce# :: () => a -> b
+GHC.Prim unsafeCoerce# :: a -> b
+GHC.Exts raise# :: () => b -> a
+GHC.Prim raise# :: b -> o
+GHC.PrimopWrappers raise# :: b -> o
+SPARC.Base largeOffsetError :: Show a => a -> b
+Control.Exception throw :: forall (r :: RuntimeRep) . forall (a :: TYPE r) . forall e . Exception e => e -> a
+Control.Exception.Base throw :: forall (r :: RuntimeRep) . forall (a :: TYPE r) . forall e . Exception e => e -> a
+Control.Exception.Compat throw :: Exception e => e -> a
+-- plus more results not shown, pass --count=20 to see more
