@@ -9,7 +9,7 @@ import qualified EVM.FeeSchedule as FeeSchedule
 
 import Control.Lens
 import Control.Monad.State.Class (MonadState)
-import Control.Monad.State.Strict (runState)
+import Control.Monad.State.Strict (State, runState)
 import Data.ByteString (ByteString)
 import Data.Maybe (isNothing)
 
@@ -48,6 +48,13 @@ exec =
   use EVM.result >>= \case
     Nothing -> State.state (runState exec1) >> exec
     Just x  -> return x
+
+eval :: VM -> VM
+eval vm = case view EVM.result vm of
+  Just _ -> vm
+  Nothing -> snd $ runState customPipeline vm
+  where customPipeline :: State VM () -- a.k.a. `EVM ()`
+        customPipeline = exec1 >> (State.state $ \a -> ((), eval a))
 
 run :: MonadState VM m => m VM
 run =
