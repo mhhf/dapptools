@@ -11,14 +11,14 @@ import Prelude hiding (Word)
 import Control.Lens hiding (pre)
 import EVM hiding (Query, push)
 import qualified EVM
-import EVM.Exec
+import EVM.Exec hiding (exec)
 import Data.Maybe
 import qualified EVM.Exec as Exec
 import qualified EVM.Fetch as Fetch
 import EVM.ABI
 import EVM.Types
 import EVM.Symbolic (SymWord(..), sw256)
-import EVM.Concrete (createAddress)
+import EVM.Concrete (createAddress, Whiff(..))
 import qualified EVM.FeeSchedule as FeeSchedule
 import Data.SBV.Trans.Control
 import Data.SBV.Trans hiding (distinct, Word)
@@ -31,6 +31,9 @@ import Data.ByteString (ByteString, pack)
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString as BS
 import Data.Text (Text, splitOn, unpack)
+import Control.Monad.State.Class (MonadState)
+import qualified Control.Monad.State.Class as State
+import Control.Monad.State.Strict (State, runState)
 import Control.Monad.State.Strict (runStateT, runState, StateT(..), get, put, zipWithM)
 import Control.Applicative
 
@@ -143,10 +146,23 @@ data BranchInfo = BranchInfo
 
 data WrapVM = WrapVM
   { _wrapvm :: VM
-  , _whateverman :: Tree VM
+  , _whateverman :: VM
   }
 
 makeLenses ''WrapVM
+
+
+-- Nothing -> State.state (runState exec1) >> exec
+-- exec1 :: EVM ()
+exec :: MonadState WrapVM m => m VMResult
+exec = do
+  -- vwm <- get
+  use (wrapvm.EVM.result) >>= \case
+    Nothing -> let
+      fwrapvm = \vm2 -> \(a, vm) -> (a, WrapVM vm vm2)
+      state = \(WrapVM vm vm2) -> (fwrapvm vm2) $ runState exec1 vm
+      in State.state state >> exec
+    Just x  -> return x
 
 -- | Interpreter which explores all paths at
 -- | branching points.
@@ -158,8 +174,8 @@ interpret fetcher maxIter =
      let performQuery = liftIO (fetcher q) >> interpret fetcher maxIter
      in case q of
        PleaseAskSMT _ _ continue -> do
-         codelocation <- getCodeLocation <$> get
-         use (iterations . at codelocation) >>= \case
+         codelocation <- getCodeLocation <$> use wrapvm
+         use (wrapvm . iterations . at codelocation) >>= \case
            -- if this is the first time we are branching at this point,
            -- explore both branches without consulting SMT.
            -- Exploring too many branches is a lot cheaper than
@@ -167,21 +183,22 @@ interpret fetcher maxIter =
            Nothing -> pure (continue EVM.Unknown) >> interpret fetcher maxIter
            _ -> performQuery
        _ -> performQuery
-   VMFailure (Choose (EVM.PleaseChoosePath continue)) -> do
-     vm <- get
+   VMFailure (Choose (EVM.PleaseChoosePath whiff continue)) -> do
+     vm <- use wrapvm
+     wvm <- get
      case maxIterationsReached vm maxIter of
        Nothing -> do push 1
                      a <- pure (continue True) >> interpret fetcher maxIter
                      assign wrapvm vm
                      pop 1
-                     put vm
+                     put wvm
                      push 1
                      b <- pure (continue False) >> interpret fetcher maxIter
                      pop 1
                      return $ Node (BranchInfo { _vm = vm, _branchCondition = Just whiff}) [a, b]
 
        Just n -> pure (continue (not n)) >> interpret fetcher maxIter
-   _ -> do vm <- get
+   _ -> do vm <- use wrapvm
            return $ Node BranchInfo {_vm = vm, _branchCondition = Nothing } []
 
 maxIterationsReached :: VM -> Maybe Integer -> Maybe Bool
@@ -229,7 +246,7 @@ verify :: VM -> Maybe Integer -> Maybe (Fetch.BlockNumber, Text) -> Maybe Postco
 verify preState maxIter rpcinfo maybepost = do
   let model = view (env . storageModel) preState
   smtState <- queryState
-  tree <- fst <$> runStateT (interpret (Fetch.oracle (Just smtState) rpcinfo model False) maxIter) (WrapVM preState (Node preState []))
+  tree <- fst <$> runStateT (interpret (Fetch.oracle (Just smtState) rpcinfo model False) maxIter) (WrapVM preState preState)
   case maybepost of
     (Just post) -> do
       let livePaths = leaves tree
@@ -265,10 +282,10 @@ equivalenceCheck bytecodeA bytecodeB maxiter signature' = do
 
   smtState <- queryState
   push 1
-  aVMs <- fst <$> runStateT (interpret (Fetch.oracle (Just smtState) Nothing SymbolicS False) maxiter) (WrapVM preStateA (Node preStateA []))
+  aVMs <- fst <$> runStateT (interpret (Fetch.oracle (Just smtState) Nothing SymbolicS False) maxiter) (WrapVM preStateA preStateA)
   pop 1
   push 1
-  bVMs <- fst <$> runStateT (interpret (Fetch.oracle (Just smtState) Nothing SymbolicS False) maxiter) (WrapVM preStateB (Node preStateB []))
+  bVMs <- fst <$> runStateT (interpret (Fetch.oracle (Just smtState) Nothing SymbolicS False) maxiter) (WrapVM preStateB preStateB)
   pop 1
   -- Check each pair of endstates for equality:
   let differingEndStates = uncurry distinct <$> [(a,b) | a <- leaves aVMs, b <- leaves bVMs]

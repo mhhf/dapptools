@@ -21,7 +21,7 @@ import EVM.ABI
 import EVM.Types
 import EVM.Solidity
 import EVM.Keccak
-import EVM.Concrete (Word(..), w256, createAddress, wordValue, keccakBlob, create2Address, wordAt)
+import EVM.Concrete (Word(..), Whiff(..), w256, createAddress, wordValue, keccakBlob, create2Address, wordAt)
 import EVM.Symbolic
 import EVM.Op
 import EVM.FeeSchedule (FeeSchedule (..))

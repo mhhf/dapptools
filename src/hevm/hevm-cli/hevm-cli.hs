@@ -15,8 +15,8 @@ module Main where
 
 import EVM (StorageModel(..))
 import qualified EVM
-import EVM.Concrete (createAddress, w256, wordValue)
-import EVM.Symbolic (forceLitBytes, litAddr, w256lit, sw256, SymWord(..), len, forceLit, litWord, Whiff(..))
+import EVM.Concrete (createAddress, w256, wordValue, Whiff(..))
+import EVM.Symbolic (forceLitBytes, litAddr, w256lit, sw256, SymWord(..), len, forceLit, litWord)
 import qualified EVM.FeeSchedule as FeeSchedule
 import qualified EVM.Fetch
 import qualified EVM.Flatten
@@ -834,9 +834,7 @@ symvmFromCommand cmd = do
     (_, _, Nothing) ->
       error "must provide at least (rpc + address) or code"
 
-  return $ (VMTest.initTx $ withCache $ vm0 miner ts blockNum diff cdlen calldata' callvalue' caller' contract')
-    & over EVM.pathConditions (<> [pathCond])
-    & set (EVM.env . EVM.contracts . (ix address') . EVM.storage) store
+  return $ vm & over EVM.constraints (<> [pathCond])
 
   where
     decipher = hexByteString "bytes" . strip0x
