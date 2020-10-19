@@ -5,6 +5,7 @@
 
 module EVM.SymExec where
 
+import Debug.Trace
 
 import Prelude hiding (Word)
 
@@ -157,7 +158,7 @@ makeLenses ''WrapVM
 exec :: MonadState WrapVM m => m VMResult
 exec = use (wrapvm.EVM.result) >>= \case
     Nothing -> let
-      fwrapvm vm2 (a, vm) = (a, WrapVM vm vm2)
+      fwrapvm vm2 (a, vm) = trace "here" (a, WrapVM vm vm2)
       stateRunner (WrapVM vm vm2) = (fwrapvm vm2) $ runState exec1 vm
       in State.state stateRunner >> exec
     Just x  -> return x
@@ -166,9 +167,8 @@ exec = use (wrapvm.EVM.result) >>= \case
 -- | branching points.
 -- | returns a list of possible final evm states
 interpret :: Fetch.Fetcher -> Maybe Integer -> StateT WrapVM Query (Tree BranchInfo)
-interpret fetcher maxIter = do
-  modifying wrapvm Exec.eval
-  use (wrapvm . EVM.result . _Just) >>= \case
+interpret fetcher maxIter =
+  exec >>= \case
    VMFailure (EVM.Query q) ->
      let performQuery = liftIO (fetcher q) >> interpret fetcher maxIter
      in case q of
