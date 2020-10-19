@@ -155,21 +155,20 @@ makeLenses ''WrapVM
 -- Nothing -> State.state (runState exec1) >> exec
 -- exec1 :: EVM ()
 exec :: MonadState WrapVM m => m VMResult
-exec = do
-  -- vwm <- get
-  use (wrapvm.EVM.result) >>= \case
+exec = use (wrapvm.EVM.result) >>= \case
     Nothing -> let
-      fwrapvm = \vm2 -> \(a, vm) -> (a, WrapVM vm vm2)
-      state = \(WrapVM vm vm2) -> (fwrapvm vm2) $ runState exec1 vm
-      in State.state state >> exec
+      fwrapvm vm2 (a, vm) = (a, WrapVM vm vm2)
+      stateRunner (WrapVM vm vm2) = (fwrapvm vm2) $ runState exec1 vm
+      in State.state stateRunner >> exec
     Just x  -> return x
 
 -- | Interpreter which explores all paths at
 -- | branching points.
 -- | returns a list of possible final evm states
 interpret :: Fetch.Fetcher -> Maybe Integer -> StateT WrapVM Query (Tree BranchInfo)
-interpret fetcher maxIter =
-  exec >>= \case
+interpret fetcher maxIter = do
+  modifying wrapvm Exec.eval
+  use (wrapvm . EVM.result . _Just) >>= \case
    VMFailure (EVM.Query q) ->
      let performQuery = liftIO (fetcher q) >> interpret fetcher maxIter
      in case q of

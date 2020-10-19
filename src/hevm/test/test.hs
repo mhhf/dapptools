@@ -38,7 +38,7 @@ import qualified Data.Map as Map
 import Data.Binary.Get (runGetOrFail)
 
 import EVM hiding (Query)
-import EVM.SymExec
+import EVM.SymExec hiding (exec)
 import EVM.Symbolic
 import EVM.Concrete (w256)
 import EVM.ABI
@@ -405,7 +405,7 @@ main = defaultMain $ testGroup "hevm"
             case view (state . calldata . _1) vm of
               SymbolicBuffer bs -> BS.pack <$> mapM (getValue.fromSized) bs
               ConcreteBuffer _ -> error "unexpected"
-              
+
           let [AbiUInt 256 x,
                AbiUInt 256 y,
                AbiUInt 256 w,

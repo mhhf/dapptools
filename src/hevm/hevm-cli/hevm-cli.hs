@@ -1,5 +1,4 @@
 -- Main file of the hevm CLI program
-
 {-# Language CPP #-}
 {-# Language DataKinds #-}
 {-# Language FlexibleInstances #-}
@@ -43,7 +42,6 @@ import EVM.RLP (rlpdecode)
 import qualified EVM.Patricia as Patricia
 import Data.Map (Map)
 
-import Data.Tree
 import qualified EVM.Facts     as Facts
 import qualified EVM.Facts.Git as Git
 import qualified EVM.UnitTest
@@ -480,7 +478,6 @@ getSrcInfo cmd =
 -- consulting z3 about rather trivial matters. But with cvc4 it is quite
 -- pleasant!
 
-
 -- If function signatures are known, they should always be given for best results.
 assert :: Command Options.Unwrapped -> IO ()
 assert cmd = do
@@ -527,40 +524,37 @@ assert cmd = do
             print vmErrs
           -- When `--get-models` is passed, we print example vm info for each path
           -- when (getModels cmd) $
-            -- io $ putStrLn "yess"
-            -- forM_ (zip [1..] (leaves tree)) $ \(i, postVM) -> do
-            --   resetAssertions
-            --   constrain (sAnd (map fst (view EVM.constraints postVM)))
-            --   io $ putStrLn $
-            --     "-- Branch (" <> show i <> "/" <> show (length tree) <> ") --"
-            --   checkSat >>= \case
-            --     Unk -> io $ do putStrLn "Timed out"
-            --                    print $ view EVM.result postVM
-            --     Unsat -> io $ do putStrLn "Inconsistent path conditions: dead path"
-            --                      print $ view EVM.result postVM
-            --     Sat -> do
-            --       showCounterexample pre maybesig
-            --       io $ putStrLn "-- Pathconditions --"
-            --       io $ print $ map snd (view EVM.constraints postVM)
-            --       case view EVM.result postVM of
-            --         Nothing ->
-            --           error "internal error; no EVM result"
-            --         Just (EVM.VMFailure (EVM.Revert "")) -> io . putStrLn $
-            --           "Reverted"
-            --         Just (EVM.VMFailure (EVM.Revert msg)) -> io . putStrLn $
-            --           "Reverted: " <> show (ByteStringS msg)
-            --         Just (EVM.VMFailure err) -> io . putStrLn $
-            --           "Failed: " <> show err
-            --         Just (EVM.VMSuccess (ConcreteBuffer msg)) ->
-            --           if ByteString.null msg
-            --           then io $ putStrLn
-            --             "Stopped"
-            --           else io $ putStrLn $
-            --             "Returned: " <> show (ByteStringS msg)
-            --         Just (EVM.VMSuccess (SymbolicBuffer msg)) -> do
-            --           out <- mapM (getValue.fromSized) msg
-            --           io . putStrLn $
-            --             "Returned: " <> show (ByteStringS (ByteString.pack out))
+          --   forM_ (zip [1..] tree) $ \(i, postVM) -> do
+          --     resetAssertions
+          --     constrain (sAnd (view EVM.constraints postVM))
+          --     io $ putStrLn $
+          --       "-- Branch (" <> show i <> "/" <> show (length tree) <> ") --"
+          --     checkSat >>= \case
+          --       Unk -> io $ do putStrLn "Timed out"
+          --                      print $ view EVM.result postVM
+          --       Unsat -> io $ do putStrLn "Inconsistent path conditions: dead path"
+          --                        print $ view EVM.result postVM
+          --       Sat -> do
+          --         showCounterexample pre maybesig
+          --         case view EVM.result postVM of
+          --           Nothing ->
+          --             error "internal error; no EVM result"
+          --           Just (EVM.VMFailure (EVM.Revert "")) -> io . putStrLn $
+          --             "Reverted"
+          --           Just (EVM.VMFailure (EVM.Revert msg)) -> io . putStrLn $
+          --             "Reverted: " <> show (ByteStringS msg)
+          --           Just (EVM.VMFailure err) -> io . putStrLn $
+          --             "Failed: " <> show err
+          --           Just (EVM.VMSuccess (ConcreteBuffer msg)) ->
+          --             if ByteString.null msg
+          --             then io $ putStrLn
+          --               "Stopped"
+          --             else io $ putStrLn $
+          --               "Returned: " <> show (ByteStringS msg)
+          --           Just (EVM.VMSuccess (SymbolicBuffer msg)) -> do
+          --             out <- mapM (getValue.fromSized) msg
+          --             io . putStrLn $
+          --               "Returned: " <> show (ByteStringS (ByteString.pack out))
 
 dappCoverage :: UnitTestOptions -> Mode -> String -> IO ()
 dappCoverage opts _ solcFile =
@@ -727,7 +721,7 @@ vmFromCommand cmd = do
         EVM.initialContract (codeType $ hexByteString "--code" $ strip0x c)
 
     (_, _, Nothing) ->
-      error "must provide at least (rpc + address) or code"
+      error $ "must provide at least (rpc + address) or code"
 
   return $ VMTest.initTx $ withCache (vm0 miner ts blockNum diff contract)
     where
@@ -780,7 +774,8 @@ symvmFromCommand cmd = do
                                    )
 
   caller' <- maybe (SAddr <$> freshVar_) (return . litAddr) (caller cmd)
-  callvalue' <- maybe ((S (Var "CallValue")) <$> freshVar_) (return . w256lit) (value cmd)
+  ts <- maybe (sw256 <$> freshVar_) (return . w256lit) (timestamp cmd)
+  callvalue' <- maybe (sw256 <$> freshVar_) (return . w256lit) (value cmd)
   (calldata', cdlen, pathCond) <- case (calldata cmd, sig cmd) of
     -- fully abstract calldata (up to 1024 bytes)
     (Nothing, Nothing) -> do
@@ -832,9 +827,11 @@ symvmFromCommand cmd = do
     (_, _, Just c)  ->
       return $ (EVM.initialContract . codeType $ decipher c)
     (_, _, Nothing) ->
-      error "must provide at least (rpc + address) or code"
+      error $ "must provide at least (rpc + address) or code"
 
-  return $ vm & over EVM.constraints (<> [pathCond])
+  return $ (VMTest.initTx $ withCache $ vm0 miner ts blockNum diff cdlen calldata' callvalue' caller' contract')
+    & over EVM.constraints (<> [pathCond])
+    & set (EVM.env . EVM.contracts . (ix address') . EVM.storage) store
 
   where
     decipher = hexByteString "bytes" . strip0x
