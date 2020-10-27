@@ -131,6 +131,7 @@ http n url = oracle Nothing (Just (n, url)) EVM.ConcreteS True
 
 -- smtsolving + (http or zero)
 oracle :: Maybe SBV.State -> Maybe (BlockNumber, Text) -> StorageModel -> Bool -> Fetcher
+-- ensureConsistency needs to be true if one wants to ensures consistency
 oracle smtstate info model ensureConsistency q = do
   case q of
     EVM.PleaseAskSMT branchcondition pathconditions continue ->

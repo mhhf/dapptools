@@ -162,12 +162,7 @@ interpret fetcher maxIter (WrapVM vm startvm) = let
 
     Nothing -> cont exec1
 
-    Just (VMFailure (EVM.Query q@(PleaseAskSMT _ _ continue))) -> let
-      codelocation = getCodeLocation vm
-      location = view (iterations . at codelocation) vm
-      in case location of
-        Nothing -> cont $ continue EVM.Unknown
-        Just _ -> fetcher q >>= cont
+    Just (VMFailure (EVM.Query q@(PleaseAskSMT _ _ continue))) -> fetcher q >>= cont
 
     Just (VMFailure (EVM.Query q)) -> fetcher q >>= cont
 
