@@ -18,7 +18,7 @@ import EVM.Dapp (DappInfo, dappInfo)
 import EVM.Dapp (dappUnitTests, unitTestMethods, dappSolcByName, dappSolcByHash, dappSources)
 import EVM.Dapp (dappAstSrcMap)
 import EVM.Debug
-import EVM.Format (showWordExact, showWordExplanation)
+import EVM.Format (showWordExact, showWordExplanation, currentSolc)
 import EVM.Format (contractNamePart, contractPathPart, showTraceTree)
 import EVM.Hexdump (prettyHex)
 import EVM.Op
@@ -834,11 +834,9 @@ isExecutionHalted _ vm = isJust (view result vm)
 currentSrcMap :: DappInfo -> VM -> Maybe SrcMap
 currentSrcMap dapp vm =
   let
-    this = vm ^?! env . contracts . ix (view (state . codeContract) vm)
-    i = (view opIxMap this) SVec.! (view (state . pc) vm)
-    h = view codehash this
+    maybesolc = currentSolc  dapp vm
   in
-    case preview (dappSolcByHash . ix h) dapp of
+    case maybesolc of
       Nothing ->
         Nothing
       Just (Creation, solc) ->

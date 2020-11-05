@@ -5,8 +5,7 @@ module EVM.Format where
 
 import Prelude hiding (Word)
 
-import EVM (VM, VMResult(..), cheatCode, traceForest, traceData, Error (..), result)
-import EVM (Trace, TraceData (..), Log (..), Query (..), FrameContext (..))
+import EVM
 import EVM.Dapp (DappInfo, dappSolcByHash, dappSolcByName, showTraceLocation, dappEventMap)
 import EVM.Concrete (Word (..), wordValue)
 import EVM.SymExec
@@ -15,7 +14,7 @@ import EVM.Types (W256 (..), num, Buffer(..), ByteStringS(..))
 import EVM.ABI (AbiValue (..), Event (..), AbiType (..))
 import EVM.ABI (Indexed (NotIndexed), getAbiSeq, getAbi)
 import EVM.ABI (parseTypeName)
-import EVM.Solidity (SolcContract, contractName, abiMap)
+import EVM.Solidity (SolcContract, contractName, abiMap, SrcMap)
 import EVM.Solidity (methodOutput, methodSignature, methodName)
 
 import Control.Arrow ((>>>))
@@ -34,6 +33,7 @@ import Data.Text.Encoding (decodeUtf8, decodeUtf8')
 import Data.Tree
 import Data.Tree.View (showTree)
 import Data.Vector (Vector, fromList)
+import qualified Data.Vector.Storable as SVec
 
 import Numeric (showHex)
 
@@ -352,6 +352,15 @@ showTreeIndentSymbol False True  = "\x251c"
 showTreeIndentSymbol True  False = " "
 showTreeIndentSymbol False False = "\x2502"
 
+
+currentSolc :: DappInfo -> VM -> Maybe SolcContract
+currentSolc dapp vm =
+  let
+    this = vm ^?! env . contracts . ix (view (state . contract) vm)
+    h = view codehash this
+  in
+    preview (dappSolcByHash . ix h . _2) dapp
+
 adjustTree :: String -> Int -> [BranchData] -> [BranchData]
 adjustTree cond i bds = let
   indentChild = over navigation $ (<>) ((showTreeIndentSymbol (i == 1) False) <> " ")
@@ -368,12 +377,13 @@ flattenTree (Node bi []) = let
 flattenTree (Node bi xs) = let
   cases = map flattenTree xs
   cond = maybe "" show (_branchCondition bi)
-  prefixed = zipWith (adjustTree cond) [0..] cases
+  hash = _vm bi
+  prefixed = zipWith (adjustTree ("()" <> cond)) [0..] cases
   in concat prefixed
 
 
-showBranchTree :: Tree BranchInfo -> String
-showBranchTree tree = let
+showBranchTree :: DappInfo -> Tree BranchInfo -> String
+showBranchTree srcInfo tree = let
   showBranchLine bd  = _navigation bd
                       <> "    "
                       <> _constraint bd
